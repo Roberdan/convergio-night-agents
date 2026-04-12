@@ -25,11 +25,7 @@ pub fn spawn_claude_agent(pool: &ConnPool, run_id: i64, model: &str, prompt: &st
     match result {
         Ok(output) if output.status.success() => {
             let outcome = String::from_utf8_lossy(&output.stdout);
-            let summary = if outcome.len() > 2000 {
-                format!("{}...", &outcome[..2000])
-            } else {
-                outcome.to_string()
-            };
+            let summary = truncate_safe(&outcome, 2000);
             mark_run_completed(pool, run_id, &summary);
         }
         Ok(output) => {
@@ -75,4 +71,16 @@ pub fn mark_run_failed(pool: &ConnPool, run_id: i64, error_msg: &str) {
             params![error_msg, run_id],
         );
     }
+}
+
+/// Truncate a string at a safe UTF-8 char boundary.
+pub fn truncate_safe(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len {
+        return s.to_string();
+    }
+    let mut end = max_len;
+    while !s.is_char_boundary(end) && end > 0 {
+        end -= 1;
+    }
+    format!("{}...", &s[..end])
 }

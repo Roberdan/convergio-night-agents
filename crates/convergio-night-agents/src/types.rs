@@ -101,6 +101,82 @@ fn default_max_runtime() -> i64 {
     3600
 }
 
+/// Maximum allowed lengths for user-supplied strings.
+const MAX_NAME_LEN: usize = 128;
+const MAX_PROMPT_LEN: usize = 32_000;
+const MAX_PATH_LEN: usize = 1024;
+const MAX_RUNTIME_SECS: i64 = 86_400; // 24h
+
+impl CreateAgentBody {
+    /// Validate user input. Returns `Err(reason)` on violation.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.name.is_empty() || self.name.len() > MAX_NAME_LEN {
+            return Err(format!("name must be 1–{MAX_NAME_LEN} chars"));
+        }
+        if !self
+            .name
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == ' ')
+        {
+            return Err("name may only contain alphanumeric, dash, underscore, space".into());
+        }
+        validate_cron(&self.schedule)?;
+        if self.agent_prompt.is_empty() || self.agent_prompt.len() > MAX_PROMPT_LEN {
+            return Err(format!("agent_prompt must be 1–{MAX_PROMPT_LEN} chars"));
+        }
+        validate_model(&self.model)?;
+        if self.max_runtime_secs <= 0 || self.max_runtime_secs > MAX_RUNTIME_SECS {
+            return Err(format!("max_runtime_secs must be 1–{MAX_RUNTIME_SECS}"));
+        }
+        Ok(())
+    }
+}
+
+/// Validate a cron expression (5 space-separated fields, safe chars).
+pub fn validate_cron(cron: &str) -> Result<(), String> {
+    let parts: Vec<&str> = cron.split_whitespace().collect();
+    if parts.len() != 5 {
+        return Err("schedule must have exactly 5 cron fields".into());
+    }
+    for part in &parts {
+        if !part
+            .chars()
+            .all(|c| c.is_ascii_digit() || c == '*' || c == '/' || c == '-' || c == ',')
+        {
+            return Err(format!("invalid cron field: {part}"));
+        }
+    }
+    Ok(())
+}
+
+/// Validate model string against the allowlist.
+pub fn validate_model(model: &str) -> Result<(), String> {
+    let allowed_static = [
+        "auto",
+        "claude-haiku-4-5",
+        "claude-sonnet-4",
+        "claude-sonnet-4-5",
+        "claude-opus-4",
+    ];
+    if allowed_static.contains(&model) || model.starts_with("mlx:") || model.starts_with("local:") {
+        // Prefixed models: only allow safe chars after the prefix
+        if let Some(suffix) = model
+            .strip_prefix("mlx:")
+            .or_else(|| model.strip_prefix("local:"))
+        {
+            if !suffix
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '/' || c == '.')
+            {
+                return Err(format!("invalid model suffix: {suffix}"));
+            }
+        }
+        Ok(())
+    } else {
+        Err(format!("invalid model: {model}"))
+    }
+}
+
 /// Request body for creating a tracked project.
 #[derive(Debug, Deserialize)]
 pub struct CreateProjectBody {
@@ -108,6 +184,27 @@ pub struct CreateProjectBody {
     pub repo_path: String,
     #[serde(default)]
     pub remote_url: Option<String>,
+}
+
+impl CreateProjectBody {
+    /// Validate user input. Returns `Err(reason)` on violation.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.name.is_empty() || self.name.len() > MAX_NAME_LEN {
+            return Err(format!("name must be 1–{MAX_NAME_LEN} chars"));
+        }
+        if self.repo_path.is_empty() || self.repo_path.len() > MAX_PATH_LEN {
+            return Err(format!("repo_path must be 1–{MAX_PATH_LEN} chars"));
+        }
+        // Path traversal: reject relative segments and null bytes
+        if self.repo_path.contains("..") || self.repo_path.contains('\0') {
+            return Err("repo_path must not contain '..' or null bytes".into());
+        }
+        // Must be absolute
+        if !self.repo_path.starts_with('/') {
+            return Err("repo_path must be an absolute path".into());
+        }
+        Ok(())
+    }
 }
 
 /// Pagination query params.

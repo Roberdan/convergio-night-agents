@@ -94,14 +94,8 @@ pub async fn set_routing(
 
     let model = body.get("model").and_then(|v| v.as_str()).unwrap_or("auto");
 
-    let valid = matches!(
-        model,
-        "auto" | "claude-haiku-4-5" | "claude-sonnet-4" | "claude-opus-4"
-    ) || model.starts_with("mlx:")
-        || model.starts_with("local:");
-
-    if !valid {
-        return Json(json!({"error": format!("invalid model: {model}")}));
+    if let Err(e) = crate::types::validate_model(model) {
+        return Json(json!({"error": e}));
     }
 
     match conn.execute(

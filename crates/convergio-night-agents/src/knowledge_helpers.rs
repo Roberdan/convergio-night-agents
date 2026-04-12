@@ -30,11 +30,7 @@ pub fn git_log_since(path: &Path, since_hash: &str) -> String {
         .filter(|o| o.status.success())
         .map(|o| {
             let s = String::from_utf8_lossy(&o.stdout);
-            if s.len() > 2000 {
-                format!("{}...(truncated)", &s[..2000])
-            } else {
-                s.to_string()
-            }
+            crate::spawner::truncate_safe(&s, 2000)
         })
         .unwrap_or_default()
 }

@@ -94,11 +94,7 @@ async fn spawn_inference(pool: &ConnPool, run_id: i64, prompt: &str) {
 
     match crate::inference_bridge::call_local(&model_name, prompt).await {
         Ok(response) => {
-            let summary = if response.len() > 2000 {
-                format!("{}...", &response[..2000])
-            } else {
-                response
-            };
+            let summary = crate::spawner::truncate_safe(&response, 2000);
             mark_run_completed(pool, run_id, &summary);
         }
         Err(e) => {

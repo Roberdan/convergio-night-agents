@@ -45,6 +45,9 @@ pub async fn create_project(
     State(state): State<Arc<NightAgentsState>>,
     Json(body): Json<CreateProjectBody>,
 ) -> Json<serde_json::Value> {
+    if let Err(e) = body.validate() {
+        return Json(json!({"error": e}));
+    }
     let conn = match state.pool.get() {
         Ok(c) => c,
         Err(e) => return Json(json!({"error": e.to_string()})),
