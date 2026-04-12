@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Roberdan/convergio-night-agents/compare/convergio-night-agents-v0.1.1...convergio-night-agents-v0.1.2) (2026-04-12)
+
+
+### Documentation
+
+* add .env.example with required environment variables ([#3](https://github.com/Roberdan/convergio-night-agents/issues/3)) ([74844cc](https://github.com/Roberdan/convergio-night-agents/commit/74844cc44d26e008af300909dfa1f0e180eeb88f))
+
 ## [0.1.1](https://github.com/Roberdan/convergio-night-agents/compare/convergio-night-agents-v0.1.0...convergio-night-agents-v0.1.1) (2026-04-12)
 
 
