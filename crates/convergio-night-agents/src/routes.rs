@@ -136,6 +136,9 @@ async fn create_def(
     State(state): State<Arc<NightAgentsState>>,
     Json(body): Json<CreateAgentBody>,
 ) -> Json<serde_json::Value> {
+    if let Err(e) = body.validate() {
+        return Json(json!({"error": e}));
+    }
     let conn = match state.pool.get() {
         Ok(c) => c,
         Err(e) => return Json(json!({"error": e.to_string()})),
@@ -203,6 +206,9 @@ async fn update_def(
     Path(id): Path<i64>,
     Json(body): Json<CreateAgentBody>,
 ) -> Json<serde_json::Value> {
+    if let Err(e) = body.validate() {
+        return Json(json!({"error": e}));
+    }
     let conn = match state.pool.get() {
         Ok(c) => c,
         Err(e) => return Json(json!({"error": e.to_string()})),

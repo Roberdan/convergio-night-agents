@@ -51,29 +51,22 @@ pub async fn dispatch_all(pool: &ConnPool) {
         if !cron_matches_now(schedule, &now) {
             continue;
         }
-        // Skip if already running
-        let active: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM night_runs \
-                 WHERE agent_def_id = ?1 \
-                 AND status IN ('pending', 'running')",
-                params![def_id],
-                |r| r.get(0),
+        // Atomic insert-if-no-active — prevents TOCTOU race
+        let inserted = conn
+            .execute(
+                "INSERT INTO night_runs (agent_def_id, status, started_at, \
+                 node_name) \
+                 SELECT ?1, 'running', datetime('now'), ?2 \
+                 WHERE NOT EXISTS ( \
+                     SELECT 1 FROM night_runs \
+                     WHERE agent_def_id = ?1 \
+                     AND status IN ('pending', 'running') \
+                 )",
+                params![def_id, local_node_name()],
             )
             .unwrap_or(0);
-        if active > 0 {
+        if inserted == 0 {
             info!(agent = %name, "skip: already active");
-            continue;
-        }
-
-        // Create run record
-        if let Err(e) = conn.execute(
-            "INSERT INTO night_runs (agent_def_id, status, started_at, \
-             node_name) \
-             VALUES (?1, 'running', datetime('now'), ?2)",
-            params![def_id, local_node_name()],
-        ) {
-            error!(agent = %name, "create run failed: {e}");
             continue;
         }
         let run_id = conn.last_insert_rowid();

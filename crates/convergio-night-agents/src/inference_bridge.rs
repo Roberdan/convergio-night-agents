@@ -63,16 +63,28 @@ async fn call_daemon_api(prompt: &str) -> Result<String, String> {
 
 /// Direct MLX subprocess call (same logic as convergio-inference backend_mlx).
 async fn call_mlx_direct(model_name: &str, prompt: &str) -> Result<String, String> {
-    let python = resolve_python();
+    // Validate model_name to prevent code injection into Python script
+    if !model_name
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '/' || c == '.')
+    {
+        return Err(format!("invalid model name: {model_name}"));
+    }
 
-    let script = format!(
-        r#"
-import json
+    let python = resolve_python();
+    let prompt_json = serde_json::to_string(prompt).unwrap_or_default();
+    let model_json = serde_json::to_string(model_name).unwrap_or_default();
+
+    // Pass model_name and prompt as JSON env vars instead of
+    // interpolating them into the script to prevent injection.
+    let script = r#"
+import json, os
 from mlx_lm import load, generate
 
-model, tokenizer = load("{model_name}")
-raw = {prompt_json}
-messages = [{{"role": "user", "content": raw}}]
+model_name = json.loads(os.environ["_MLX_MODEL"])
+raw = json.loads(os.environ["_MLX_PROMPT"])
+model, tokenizer = load(model_name)
+messages = [{"role": "user", "content": raw}]
 prompt = tokenizer.apply_chat_template(
     messages, add_generation_prompt=True, tokenize=False
 )
@@ -80,15 +92,14 @@ response = generate(model, tokenizer, prompt=prompt, max_tokens=1024)
 for tag in ["<|im_start|>", "<|im_end|>", "<|endoftext|>"]:
     response = response.replace(tag, "")
 response = response.strip()
-print(json.dumps({{"content": response}}))
-"#,
-        model_name = model_name,
-        prompt_json = serde_json::to_string(prompt).unwrap_or_default(),
-    );
+print(json.dumps({"content": response}))
+"#;
 
     let output = tokio::task::spawn_blocking(move || {
         std::process::Command::new(&python)
-            .args(["-c", &script])
+            .args(["-c", script])
+            .env("_MLX_MODEL", model_json)
+            .env("_MLX_PROMPT", prompt_json)
             .output()
     })
     .await
