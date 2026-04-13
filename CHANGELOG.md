@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/Roberdan/convergio-night-agents/compare/v0.1.3...v0.1.4) (2026-04-13)
+
+
+### Bug Fixes
+
+* add crates.io publishing metadata (description, repository) ([bf0c8a0](https://github.com/Roberdan/convergio-night-agents/commit/bf0c8a0bba41256b5572f896dfbfe621511a7b26))
+
 ## [0.1.3](https://github.com/Roberdan/convergio-night-agents/compare/v0.1.2...v0.1.3) (2026-04-13)
 
 
