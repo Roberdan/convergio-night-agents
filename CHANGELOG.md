@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/Roberdan/convergio-night-agents/compare/v0.1.4...v0.1.5) (2026-04-13)
+
+
+### Bug Fixes
+
+* pass CARGO_REGISTRY_TOKEN to release workflow ([b08cbd9](https://github.com/Roberdan/convergio-night-agents/commit/b08cbd97046313135761cf21dde4d5337640b93d))
+
 ## [0.1.4](https://github.com/Roberdan/convergio-night-agents/compare/v0.1.3...v0.1.4) (2026-04-13)
 
 
