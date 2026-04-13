@@ -40,7 +40,7 @@ async fn handle_drift_detection(
 ) -> Json<serde_json::Value> {
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(crate::routes::safe_err("drift_detection", &e)),
     };
 
     // Load project info
@@ -62,11 +62,13 @@ async fn handle_drift_detection(
 
     // Update last_scan_hash
     if let Some(ref hash) = report.scan_hash {
-        let _ = conn.execute(
+        if let Err(e) = conn.execute(
             "UPDATE tracked_projects SET last_scan_hash = ?1, \
              last_scan_at = datetime('now') WHERE id = ?2",
             params![hash, project_id],
-        );
+        ) {
+            tracing::warn!(project_id, "drift: update scan hash failed: {e}");
+        }
     }
 
     Json(json!({

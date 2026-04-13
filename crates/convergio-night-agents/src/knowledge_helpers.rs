@@ -4,6 +4,7 @@ use std::path::Path;
 use std::process::Command;
 
 use rusqlite::params;
+use tracing::warn;
 
 pub fn git_head(path: &Path) -> Option<String> {
     Command::new("git")
@@ -154,18 +155,20 @@ pub fn upsert_knowledge(
         .map(|c| c > 0)
         .unwrap_or(false);
     if exists {
-        let _ = conn.execute(
+        if let Err(e) = conn.execute(
             "UPDATE knowledge_base SET content = ?1, \
              created_at = datetime('now') WHERE domain = ?2",
             params![content, domain],
-        );
-    } else {
-        let _ = conn.execute(
-            "INSERT INTO knowledge_base \
-             (domain, title, content, created_at) \
-             VALUES (?1, ?2, ?3, datetime('now'))",
-            params![domain, title, content],
-        );
+        ) {
+            warn!(domain = %domain, "knowledge upsert (update) failed: {e}");
+        }
+    } else if let Err(e) = conn.execute(
+        "INSERT INTO knowledge_base \
+         (domain, title, content, created_at) \
+         VALUES (?1, ?2, ?3, datetime('now'))",
+        params![domain, title, content],
+    ) {
+        warn!(domain = %domain, "knowledge upsert (insert) failed: {e}");
     }
 }
 

@@ -7,7 +7,7 @@ use axum::response::Json;
 use rusqlite::params;
 use serde_json::json;
 
-use crate::routes::NightAgentsState;
+use crate::routes::{safe_err, NightAgentsState};
 use crate::types::ListQuery;
 
 pub async fn trigger_def(
@@ -28,7 +28,7 @@ pub async fn list_runs(
 ) -> Json<serde_json::Value> {
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("list_runs", &e)),
     };
     let limit = q.limit.unwrap_or(20).min(100) as i64;
     let offset = q.offset.unwrap_or(0) as i64;
@@ -39,7 +39,7 @@ pub async fn list_runs(
          ORDER BY id DESC LIMIT ?2 OFFSET ?3",
     ) {
         Ok(s) => s,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("list_runs", &e)),
     };
     let rows: Vec<serde_json::Value> = stmt
         .query_map(params![id, limit, offset], |row| {
@@ -64,7 +64,7 @@ pub async fn list_runs(
 pub async fn active_runs(State(state): State<Arc<NightAgentsState>>) -> Json<serde_json::Value> {
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("active_runs", &e)),
     };
     let mut stmt = match conn.prepare(
         "SELECT r.id, r.agent_def_id, d.name, r.status, r.node_name, \
@@ -74,7 +74,7 @@ pub async fn active_runs(State(state): State<Arc<NightAgentsState>>) -> Json<ser
          WHERE r.status IN ('pending', 'running') ORDER BY r.id",
     ) {
         Ok(s) => s,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("active_runs", &e)),
     };
     let rows: Vec<serde_json::Value> = stmt
         .query_map([], |row| {
@@ -99,7 +99,7 @@ pub async fn cancel_run(
 ) -> Json<serde_json::Value> {
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("cancel_run", &e)),
     };
     match conn.execute(
         "UPDATE night_runs SET status = 'cancelled', \
@@ -109,6 +109,6 @@ pub async fn cancel_run(
     ) {
         Ok(n) if n > 0 => Json(json!({"status": "cancelled"})),
         Ok(_) => Json(json!({"error": "run not found or not active"})),
-        Err(e) => Json(json!({"error": e.to_string()})),
+        Err(e) => Json(safe_err("cancel_run", &e)),
     }
 }

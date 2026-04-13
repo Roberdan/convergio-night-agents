@@ -7,6 +7,7 @@ use axum::Router;
 use rusqlite::params;
 use serde_json::json;
 use std::sync::Arc;
+use tracing::error;
 
 use crate::routes_memory_lint;
 use crate::routes_projects;
@@ -17,6 +18,13 @@ use convergio_db::pool::ConnPool;
 
 pub struct NightAgentsState {
     pub pool: ConnPool,
+}
+
+/// Sanitize internal errors before returning to the API client.
+/// Logs the full error, returns a generic message to the caller.
+pub(crate) fn safe_err(context: &str, err: &dyn std::fmt::Display) -> serde_json::Value {
+    error!("{context}: {err}");
+    json!({"error": format!("{context}: internal error")})
 }
 
 pub fn night_agents_routes(state: Arc<NightAgentsState>) -> Router {
@@ -93,7 +101,7 @@ pub fn night_agents_routes(state: Arc<NightAgentsState>) -> Router {
 async fn list_defs(State(state): State<Arc<NightAgentsState>>) -> Json<serde_json::Value> {
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("list_defs", &e)),
     };
     let mut stmt = match conn.prepare(
         "SELECT d.id, d.name, d.org_id, d.description, d.schedule, \
@@ -108,7 +116,7 @@ async fn list_defs(State(state): State<Arc<NightAgentsState>>) -> Json<serde_jso
          FROM night_agent_defs d ORDER BY d.name",
     ) {
         Ok(s) => s,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("list_defs", &e)),
     };
     let rows: Vec<serde_json::Value> = stmt
         .query_map([], |row| {
@@ -141,7 +149,7 @@ async fn create_def(
     }
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("create_def", &e)),
     };
     match conn.execute(
         "INSERT INTO night_agent_defs \
@@ -162,7 +170,7 @@ async fn create_def(
             let id = conn.last_insert_rowid();
             Json(json!({"id": id, "status": "created"}))
         }
-        Err(e) => Json(json!({"error": e.to_string()})),
+        Err(e) => Json(safe_err("create_def", &e)),
     }
 }
 
@@ -172,7 +180,7 @@ async fn get_def(
 ) -> Json<serde_json::Value> {
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("get_def", &e)),
     };
     let def = conn.query_row(
         "SELECT id, name, org_id, description, schedule, agent_prompt, \
@@ -197,7 +205,8 @@ async fn get_def(
     );
     match def {
         Ok(d) => Json(d),
-        Err(e) => Json(json!({"error": e.to_string()})),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Json(json!({"error": "not found"})),
+        Err(e) => Json(safe_err("get_def", &e)),
     }
 }
 
@@ -211,7 +220,7 @@ async fn update_def(
     }
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("update_def", &e)),
     };
     match conn.execute(
         "UPDATE night_agent_defs SET \
@@ -232,7 +241,7 @@ async fn update_def(
     ) {
         Ok(n) if n > 0 => Json(json!({"status": "updated"})),
         Ok(_) => Json(json!({"error": "not found"})),
-        Err(e) => Json(json!({"error": e.to_string()})),
+        Err(e) => Json(safe_err("update_def", &e)),
     }
 }
 
@@ -242,7 +251,7 @@ async fn delete_def(
 ) -> Json<serde_json::Value> {
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("delete_def", &e)),
     };
     match conn.execute(
         "UPDATE night_agent_defs SET enabled = 0, \
@@ -251,6 +260,6 @@ async fn delete_def(
     ) {
         Ok(n) if n > 0 => Json(json!({"status": "disabled"})),
         Ok(_) => Json(json!({"error": "not found"})),
-        Err(e) => Json(json!({"error": e.to_string()})),
+        Err(e) => Json(safe_err("delete_def", &e)),
     }
 }

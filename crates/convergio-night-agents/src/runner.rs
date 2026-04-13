@@ -112,13 +112,22 @@ pub async fn dispatch_single(pool: &ConnPool, def_id: i64) {
         }
     };
 
-    if let Err(e) = conn.execute(
-        "INSERT INTO night_runs (agent_def_id, status, started_at, \
-         node_name) \
-         VALUES (?1, 'running', datetime('now'), ?2)",
-        params![def_id, local_node_name()],
-    ) {
-        error!(agent = %name, "create run failed: {e}");
+    // Atomic insert-if-no-active — prevents duplicate concurrent runs
+    let inserted = conn
+        .execute(
+            "INSERT INTO night_runs (agent_def_id, status, started_at, \
+             node_name) \
+             SELECT ?1, 'running', datetime('now'), ?2 \
+             WHERE NOT EXISTS ( \
+                 SELECT 1 FROM night_runs \
+                 WHERE agent_def_id = ?1 \
+                 AND status IN ('pending', 'running') \
+             )",
+            params![def_id, local_node_name()],
+        )
+        .unwrap_or(0);
+    if inserted == 0 {
+        warn!(def_id, agent = %name, "skip trigger: already active");
         return;
     }
     let run_id = conn.last_insert_rowid();

@@ -7,13 +7,13 @@ use axum::response::Json;
 use rusqlite::params;
 use serde_json::json;
 
-use crate::routes::NightAgentsState;
+use crate::routes::{safe_err, NightAgentsState};
 
 /// GET /api/night-agents/routing/stats — routing statistics.
 pub async fn routing_stats(State(state): State<Arc<NightAgentsState>>) -> Json<serde_json::Value> {
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("routing_stats", &e)),
     };
 
     let total_defs: i64 = conn
@@ -55,7 +55,7 @@ pub async fn routing_stats(State(state): State<Arc<NightAgentsState>>) -> Json<s
                  GROUP BY d.model, r.status ORDER BY d.model",
         ) {
             Ok(s) => s,
-            Err(e) => return Json(json!({"error": format!("query failed: {e}")})),
+            Err(e) => return Json(safe_err("routing_stats", &e)),
         };
         stmt.query_map([], |row| {
             Ok(json!({
@@ -89,7 +89,7 @@ pub async fn set_routing(
 ) -> Json<serde_json::Value> {
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("set_routing", &e)),
     };
 
     let model = body.get("model").and_then(|v| v.as_str()).unwrap_or("auto");
@@ -104,7 +104,7 @@ pub async fn set_routing(
     ) {
         Ok(1) => Json(json!({"status": "updated", "model": model})),
         Ok(_) => Json(json!({"error": "not found"})),
-        Err(e) => Json(json!({"error": e.to_string()})),
+        Err(e) => Json(safe_err("set_routing", &e)),
     }
 }
 
@@ -114,7 +114,7 @@ pub async fn migrate_all_to_auto(
 ) -> Json<serde_json::Value> {
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("migrate_all", &e)),
     };
     let updated = conn
         .execute(

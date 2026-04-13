@@ -184,12 +184,14 @@ fn store_findings(conn: &rusqlite::Connection, findings: &[LintFinding]) {
     }
     let project = &findings[0].project_name;
     // Clear old results for this project
-    let _ = conn.execute(
+    if let Err(e) = conn.execute(
         "DELETE FROM memory_lint_results WHERE project_name = ?1",
         params![project],
-    );
+    ) {
+        warn!(project = %project, "lint store: delete failed: {e}");
+    }
     for f in findings {
-        let _ = conn.execute(
+        if let Err(e) = conn.execute(
             "INSERT INTO memory_lint_results \
              (project_name, file_path, line, category, severity, \
               rule, message, suggestion, run_at) \
@@ -204,7 +206,9 @@ fn store_findings(conn: &rusqlite::Connection, findings: &[LintFinding]) {
                 f.message,
                 f.suggestion,
             ],
-        );
+        ) {
+            warn!(project = %project, rule = %f.rule, "lint store: insert failed: {e}");
+        }
     }
 }
 

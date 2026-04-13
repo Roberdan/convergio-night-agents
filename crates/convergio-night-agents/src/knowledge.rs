@@ -113,14 +113,16 @@ fn sync_project(
 
     let profile_json =
         serde_json::to_string(&serde_json::json!({"profile": &profile})).unwrap_or_default();
-    let _ = conn.execute(
+    if let Err(e) = conn.execute(
         "UPDATE tracked_projects SET \
          last_scan_at = datetime('now'), \
          last_scan_hash = ?1, \
          scan_profile_json = ?2 \
          WHERE id = ?3",
         params![current_hash, profile_json, project_id],
-    );
+    ) {
+        warn!(name, "update scan state failed: {e}");
+    }
 
     info!(name, hash = %current_hash, "knowledge synced");
     true

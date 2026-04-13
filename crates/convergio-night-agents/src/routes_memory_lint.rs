@@ -8,7 +8,7 @@ use rusqlite::params;
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::routes::NightAgentsState;
+use crate::routes::{safe_err, NightAgentsState};
 
 #[derive(Debug, Deserialize, Default)]
 pub struct LintListQuery {
@@ -25,7 +25,7 @@ pub async fn list_findings(
 ) -> Json<serde_json::Value> {
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("list_findings", &e)),
     };
     let limit = q.limit.unwrap_or(100).min(500) as i64;
 
@@ -61,7 +61,7 @@ pub async fn list_findings(
     let result = {
         let mut stmt = match conn.prepare(&sql) {
             Ok(s) => s,
-            Err(e) => return Json(json!({"error": e.to_string()})),
+            Err(e) => return Json(safe_err("list_findings", &e)),
         };
         // We need to bind dynamically — use a simple approach
         let all_params: Vec<Box<dyn rusqlite::types::ToSql>> = bind_values
@@ -99,7 +99,7 @@ pub async fn list_findings(
 pub async fn lint_summary(State(state): State<Arc<NightAgentsState>>) -> Json<serde_json::Value> {
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("lint_summary", &e)),
     };
     let mut stmt = match conn.prepare(
         "SELECT project_name, \
@@ -115,7 +115,7 @@ pub async fn lint_summary(State(state): State<Arc<NightAgentsState>>) -> Json<se
          GROUP BY project_name ORDER BY total DESC",
     ) {
         Ok(s) => s,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("lint_summary", &e)),
     };
     let rows: Vec<serde_json::Value> = stmt
         .query_map([], |row| {
@@ -164,7 +164,7 @@ pub async fn dismiss_finding(
 ) -> Json<serde_json::Value> {
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("dismiss_finding", &e)),
     };
     match conn.execute(
         "UPDATE memory_lint_results SET dismissed = 1 WHERE id = ?1",
@@ -172,6 +172,6 @@ pub async fn dismiss_finding(
     ) {
         Ok(n) if n > 0 => Json(json!({"status": "dismissed"})),
         Ok(_) => Json(json!({"error": "not found"})),
-        Err(e) => Json(json!({"error": e.to_string()})),
+        Err(e) => Json(safe_err("dismiss_finding", &e)),
     }
 }

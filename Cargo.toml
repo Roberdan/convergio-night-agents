@@ -3,14 +3,13 @@ resolver = "2"
 members = ["crates/convergio-night-agents"]
 
 [workspace.package]
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/Roberdan/convergio-night-agents"
 
 [workspace.dependencies]
 # SDK
-convergio-sdk = { git = "https://github.com/Roberdan/convergio-sdk", tag = "v0.1.9" }
 convergio-types = "0.1"
 convergio-db = "0.1"
 convergio-telemetry = "0.1"

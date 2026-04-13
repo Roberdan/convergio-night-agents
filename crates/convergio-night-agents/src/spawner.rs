@@ -54,22 +54,26 @@ fn resolve_claude_bin() -> Option<String> {
 
 pub fn mark_run_completed(pool: &ConnPool, run_id: i64, outcome: &str) {
     if let Ok(conn) = pool.get() {
-        let _ = conn.execute(
+        if let Err(e) = conn.execute(
             "UPDATE night_runs SET status = 'completed', \
              completed_at = datetime('now'), outcome = ?1 WHERE id = ?2",
             params![outcome, run_id],
-        );
+        ) {
+            error!(run_id, "mark_run_completed failed: {e}");
+        }
     }
 }
 
 pub fn mark_run_failed(pool: &ConnPool, run_id: i64, error_msg: &str) {
     error!(run_id, error_msg, "night run failed");
     if let Ok(conn) = pool.get() {
-        let _ = conn.execute(
+        if let Err(e) = conn.execute(
             "UPDATE night_runs SET status = 'failed', \
              completed_at = datetime('now'), error_message = ?1 WHERE id = ?2",
             params![error_msg, run_id],
-        );
+        ) {
+            error!(run_id, "mark_run_failed db update failed: {e}");
+        }
     }
 }
 

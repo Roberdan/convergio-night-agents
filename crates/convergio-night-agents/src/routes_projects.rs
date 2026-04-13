@@ -7,13 +7,13 @@ use axum::response::Json;
 use rusqlite::params;
 use serde_json::json;
 
-use crate::routes::NightAgentsState;
+use crate::routes::{safe_err, NightAgentsState};
 use crate::types::CreateProjectBody;
 
 pub async fn list_projects(State(state): State<Arc<NightAgentsState>>) -> Json<serde_json::Value> {
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("list_projects", &e)),
     };
     let mut stmt = match conn.prepare(
         "SELECT id, name, repo_path, remote_url, last_scan_at, \
@@ -21,7 +21,7 @@ pub async fn list_projects(State(state): State<Arc<NightAgentsState>>) -> Json<s
          FROM tracked_projects ORDER BY name",
     ) {
         Ok(s) => s,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("list_projects", &e)),
     };
     let rows: Vec<serde_json::Value> = stmt
         .query_map([], |row| {
@@ -50,7 +50,7 @@ pub async fn create_project(
     }
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("create_project", &e)),
     };
     match conn.execute(
         "INSERT INTO tracked_projects (name, repo_path, remote_url) \
@@ -61,7 +61,7 @@ pub async fn create_project(
             let id = conn.last_insert_rowid();
             Json(json!({"id": id, "status": "created"}))
         }
-        Err(e) => Json(json!({"error": e.to_string()})),
+        Err(e) => Json(safe_err("create_project", &e)),
     }
 }
 
@@ -71,7 +71,7 @@ pub async fn delete_project(
 ) -> Json<serde_json::Value> {
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(e) => return Json(json!({"error": e.to_string()})),
+        Err(e) => return Json(safe_err("delete_project", &e)),
     };
     match conn.execute(
         "UPDATE tracked_projects SET enabled = 0 WHERE id = ?1",
@@ -79,7 +79,7 @@ pub async fn delete_project(
     ) {
         Ok(n) if n > 0 => Json(json!({"status": "disabled"})),
         Ok(_) => Json(json!({"error": "not found"})),
-        Err(e) => Json(json!({"error": e.to_string()})),
+        Err(e) => Json(safe_err("delete_project", &e)),
     }
 }
 
