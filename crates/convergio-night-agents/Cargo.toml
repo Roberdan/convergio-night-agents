@@ -4,6 +4,7 @@ description = "Night agents — scheduled autonomous agents running during off-p
 version = "0.1.3"
 edition.workspace = true
 license.workspace = true
+repository = "https://github.com/Roberdan/convergio-night-agents"
 
 [dependencies]
 convergio-types = { workspace = true }
